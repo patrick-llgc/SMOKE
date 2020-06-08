@@ -5,3 +5,7 @@
 /tools/logs/
 
 .idea
+
+/datasets/
+__pycache__
+*.so
