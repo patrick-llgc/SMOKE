@@ -9,3 +9,5 @@
 /datasets/
 __pycache__
 *.so
+
+.vscode
