@@ -93,6 +93,7 @@ class KITTIDataset(Dataset):
             img = img.transpose(Image.FLIP_LEFT_RIGHT)
             center[0] = size[0] - center[0] - 1
             K[0, 2] = size[0] - K[0, 2] - 1
+            K[0, 3] *= -1
 
         affine = False
         if (self.is_train) and (random.random() < self.aug_prob):
@@ -211,7 +212,7 @@ class KITTIDataset(Dataset):
             with open(os.path.join(self.label_dir, file_name), 'r') as csv_file:
                 reader = csv.DictReader(csv_file, delimiter=' ', fieldnames=fieldnames)
 
-                for line, row in enumerate(reader):
+                for row in reader:
                     if row["type"] in self.classes:
                         annotations.append({
                             "class": row["type"],
@@ -227,12 +228,11 @@ class KITTIDataset(Dataset):
         # get camera intrinsic matrix K
         with open(os.path.join(self.calib_dir, file_name), 'r') as csv_file:
             reader = csv.reader(csv_file, delimiter=' ')
-            for line, row in enumerate(reader):
+            for row in reader:
                 if row[0] == 'P2:':
                     K = row[1:]
                     K = [float(i) for i in K]
                     K = np.array(K, dtype=np.float32).reshape(3, 4)
-                    K = K[:3, :3]
                     break
 
         return annotations, K

@@ -2,7 +2,7 @@ import numpy as np
 
 import torch
 
-PI = 3.14159
+PI = np.pi
 
 
 def encode_label(K, ry, dims, locs):
@@ -24,11 +24,11 @@ def encode_label(K, ry, dims, locs):
     corners_3d = np.matmul(rot_mat, corners_3d)
     corners_3d += np.array([x, y, z]).reshape([3, 1])
 
-    loc_center = np.array([x, y - h / 2, z])
+    loc_center = np.array([x, y - h / 2, z, 1.0])
     proj_point = np.matmul(K, loc_center)
     proj_point = proj_point[:2] / proj_point[2]
 
-    corners_2d = np.matmul(K, corners_3d)
+    corners_2d = np.matmul(K[:, :3], corners_3d) + K[:, 3:]
     corners_2d = corners_2d[:2] / corners_2d[2]
     box2d = np.array([min(corners_2d[0]), min(corners_2d[1]),
                       max(corners_2d[0]), max(corners_2d[1])])
@@ -48,10 +48,8 @@ class SMOKECoder():
         img_size = img_size.flatten()
 
         box3d = self.encode_box3d(rotys, dims, locs)
-        box3d_image = torch.matmul(K, box3d)
-        box3d_image = box3d_image[:, :2, :] / box3d_image[:, 2, :].view(
-            box3d.shape[0], 1, box3d.shape[2]
-        )
+        box3d_image = torch.matmul(K[:, :, :3], box3d) + K[:, :, 3:]
+        box3d_image = box3d_image[:, :2, :] / box3d_image[:, 2:, :]
 
         xmins, _ = box3d_image[:, 0, :].min(dim=1)
         xmaxs, _ = box3d_image[:, 0, :].max(dim=1)
@@ -142,7 +140,7 @@ class SMOKECoder():
             points: projected points on feature map in (x, y)
             points_offset: project points offset in (delata_x, delta_y)
             depths: object depth z
-            Ks: camera intrinsic matrix, shape = [N, 3, 3]
+            Ks: camera intrinsic matrix, shape = [N, 3, 4]
             trans_mats: transformation matrix from image to feature map, shape = [N, 3, 3]
 
         Returns:
@@ -161,7 +159,7 @@ class SMOKECoder():
         obj_id = batch_id.repeat(1, N // N_batch).flatten()
 
         trans_mats_inv = trans_mats.inverse()[obj_id]
-        Ks_inv = Ks.inverse()[obj_id]
+        Ks_inv = Ks[:, :, :3].inverse()[obj_id]
 
         points = points.view(-1, 2)
         assert points.shape[0] == N
@@ -176,7 +174,7 @@ class SMOKECoder():
         # with depth
         proj_points_img = proj_points_img * depths.view(N, -1, 1)
         # transform image coordinates back to object locations
-        locations = torch.matmul(Ks_inv, proj_points_img)
+        locations = torch.matmul(Ks_inv, proj_points_img - Ks[:, :, 3:][obj_id])
 
         return locations.squeeze(2)
 
