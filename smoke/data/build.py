@@ -90,7 +90,7 @@ def make_data_loader(cfg, is_train=True):
     # group images which have similar aspect ratio. In this case, we only
     # group in two cases: those with width / height > 1, and the other way around,
     # but the code supports more general grouping strategy
-    aspect_grouping = [1] if cfg.DATALOADER.ASPECT_RATIO_GROUPING else []
+    #aspect_grouping = [1] if cfg.DATALOADER.ASPECT_RATIO_GROUPING else []
 
     path_catalog = import_file(
         "smoke.config.paths_catalog", cfg.PATHS_CATALOG, True
@@ -149,7 +149,7 @@ def build_test_loader(cfg, is_train=False):
         )
         data_loaders.append(data_loader)
 
-    return data_loader
+    return data_loaders
 
 
 def trivial_batch_collator(batch):

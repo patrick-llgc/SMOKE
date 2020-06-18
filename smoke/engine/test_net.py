@@ -19,7 +19,7 @@ def run_test(cfg, model):
     for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
         inference(
             model,
-            data_loaders_val,
+            data_loader_val,
             dataset_name=dataset_name,
             eval_types=eval_types,
             device=cfg.MODEL.DEVICE,
