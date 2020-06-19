@@ -39,13 +39,11 @@ class KITTIDataset(Dataset):
         if not os.path.exists(imageset_txt):
             raise FileNotFoundError("Split file {}.txt not found!".format(self.split))
 
-        image_files = []
-        for line in open(imageset_txt, "r"):
-            base_name = line.replace("\n", "")
-            image_name = base_name + ".png"
-            image_files.append(image_name)
-        self.image_files = image_files
-        self.label_files = [i.replace(".png", ".txt") for i in self.image_files]
+        with open(imageset_txt, "r") as f:
+            sample_ids = f.read().splitlines()
+
+        self.image_files = [sample_id + ".png" for sample_id in sample_ids]
+        self.label_files = [sample_id + ".txt" for sample_id in sample_ids]
         self.num_samples = len(self.image_files)
         self.classes = cfg.DATASETS.DETECT_CLASSES
 
