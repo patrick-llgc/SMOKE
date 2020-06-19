@@ -35,16 +35,9 @@ class KITTIDataset(Dataset):
         self.is_train = is_train
         self.transforms = transforms
 
-        if self.split == "train":
-            imageset_txt = os.path.join(root, "ImageSets", "train.txt")
-        elif self.split == "val":
-            imageset_txt = os.path.join(root, "ImageSets", "val.txt")
-        elif self.split == "trainval":
-            imageset_txt = os.path.join(root, "ImageSets", "trainval.txt")
-        elif self.split == "test":
-            imageset_txt = os.path.join(root, "ImageSets", "test.txt")
-        else:
-            raise ValueError("Invalid split!")
+        imageset_txt = os.path.join(root, "ImageSets", self.split + ".txt")
+        if not os.path.exists(imageset_txt):
+            raise FileNotFoundError("Split file {}.txt not found!".format(self.split))
 
         image_files = []
         for line in open(imageset_txt, "r"):
