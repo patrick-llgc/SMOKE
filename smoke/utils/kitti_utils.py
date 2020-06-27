@@ -7,7 +7,7 @@ import scipy
 import torch
 
 
-def get_objects_from_label(label_file):
+def get_objects_from_file(label_file):
     with open(label_file, 'r') as f:
         lines = f.readlines()
     objects = [Object3d(line) for line in lines]
@@ -172,6 +172,14 @@ def boxes3d_to_corners3d_torch(boxes3d, flip=False):
     return corners_rotated
 
 
+def corners3d_to_frustums2d(corners):
+    azims = np.arctan2(corners[:, :, 2], corners[:, :, 0])
+    azims_min = np.min(azims, axis=1)
+    azims_max = np.max(azims, axis=1)
+    frustum2d = np.vstack((azims_min, azims_max)).T
+    return frustum2d
+
+
 def boxes3d_to_bev_torch(boxes3d):
     """
     :param boxes3d: (N, 7) [x, y, z, h, w, l, ry]
@@ -247,7 +255,7 @@ def objs_to_boxes3d(obj_list):
     boxes3d = np.zeros((obj_list.__len__(), 7), dtype=np.float32)
     for k, obj in enumerate(obj_list):
         boxes3d[k, 0:3], boxes3d[k, 3], boxes3d[k, 4], boxes3d[k, 5], boxes3d[k, 6] \
-            = obj.pos, obj.h, obj.w, obj.l, obj.ry
+            = obj.loc, obj.h, obj.w, obj.l, obj.ry
     return boxes3d
 
 
@@ -446,18 +454,21 @@ class Object3d(object):
         self.cls_type = label[0]
         self.cls_id = self.cls_type_to_id(self.cls_type)
         self.trucation = float(label[1])
-        self.occlusion = float(label[2])  # 0:fully visible 1:partly occluded 2:largely occluded 3:unknown
+        self.occlusion = int(label[2])  # 0:fully visible 1:partly occluded 2:largely occluded 3:unknown
         self.alpha = float(label[3])
         self.box2d = np.array((float(label[4]), float(label[5]), float(label[6]), float(label[7])), dtype=np.float32)
         self.h = float(label[8])
         self.w = float(label[9])
         self.l = float(label[10])
-        self.pos = np.array((float(label[11]), float(label[12]), float(label[13])), dtype=np.float32)
-        self.dis_to_cam = np.linalg.norm(self.pos)
+        self.loc = np.array((float(label[11]), float(label[12]), float(label[13])), dtype=np.float32)
         self.ry = float(label[14])
         self.score = float(label[15]) if label.__len__() == 16 else -1.0
         self.level_str = None
         self.level = self.get_obj_level()
+    
+    @property
+    def dis_to_cam(self):
+        return np.linalg.norm(self.loc)
 
     def get_obj_level(self):
         height = float(self.box2d[3]) - float(self.box2d[1]) + 1
@@ -490,21 +501,36 @@ class Object3d(object):
                       [-np.sin(self.ry), 0, np.cos(self.ry)]])
         corners3d = np.vstack([x_corners, y_corners, z_corners])  # (3, 8)
         corners3d = np.dot(R, corners3d).T
-        corners3d = corners3d + self.pos
+        corners3d = corners3d + self.loc
         return corners3d
 
     def to_str(self):
-        print_str = '%s %.3f %.3f %.3f box2d: %s hwl: [%.3f %.3f %.3f] pos: %s ry: %.3f' \
+        print_str = '%s %.3f %d %.3f box2d: %s hwl: [%.3f %.3f %.3f] loc: %s ry: %.3f' \
                      % (self.cls_type, self.trucation, self.occlusion, self.alpha, self.box2d, self.h, self.w, self.l,
-                        self.pos, self.ry)
+                        self.loc, self.ry)
+        if self.score != -1.0:
+            print_str += ' score: %.3f' % self.score
         return print_str
 
     def to_kitti_format(self):
         kitti_str = '%s %.2f %d %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f' \
-                    % (self.cls_type, self.trucation, int(self.occlusion), self.alpha, self.box2d[0], self.box2d[1],
-                       self.box2d[2], self.box2d[3], self.h, self.w, self.l, self.pos[0], self.pos[1], self.pos[2],
+                    % (self.cls_type, self.trucation, self.occlusion, self.alpha, self.box2d[0], self.box2d[1],
+                       self.box2d[2], self.box2d[3], self.h, self.w, self.l, self.loc[0], self.loc[1], self.loc[2],
                        self.ry)
+        if self.score != -1.0:
+            kitti_str += ' %.2f' % self.score
         return kitti_str
+    
+    def to_pred_format(self):
+        pred_str = '%s %f %d %f %f %f %f %f %f %f %f %f %f %f %f' \
+                    % (self.cls_type, self.trucation, self.occlusion, self.alpha, self.box2d[0], self.box2d[1],
+                       self.box2d[2], self.box2d[3], self.h, self.w, self.l, self.loc[0], self.loc[1], self.loc[2],
+                       self.ry)
+        if self.score != -1.0:
+            pred_str += ' %f' % self.score
+        else:
+            pred_str += ' %f' % 1.0
+        return pred_str
 
     def cls_type_to_id(self, cls_type):
         if cls_type not in self.TYPE_ID_CONVERSION.keys():

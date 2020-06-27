@@ -43,7 +43,7 @@ for sample_id in tqdm(sample_ids):
     pc_intensity = pc_intensity[pc_camera_flag]
 
     # get 3D bounding boxes TODO: filter object types
-    gt_objects = ku.filter_objects(ku.get_objects_from_label(os.path.join(label_root, sample_id + '.txt')))
+    gt_objects = ku.filter_objects(ku.get_objects_from_file(os.path.join(label_root, sample_id + '.txt')))
     gt_bboxes = ku.objs_to_boxes3d(gt_objects)
 
     # crop point cloud in 3D bounding boxes
