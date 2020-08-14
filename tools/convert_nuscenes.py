@@ -1,5 +1,7 @@
 import os
 import copy
+import json
+from tqdm import tqdm
 
 import numpy as np
 from pyquaternion import Quaternion
@@ -7,33 +9,33 @@ from pyquaternion import Quaternion
 from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.splits import mini_train as TRAIN_SCENES_MINI, train_detect as TRAIN_SCENES_HALF, train as TRAIN_SCENES_FULL, mini_val as VAL_SCENES_MINI, val as VAL_SCENES_FULL
 from nuscenes.utils.geometry_utils import BoxVisibility, transform_matrix
+from nuscenes.utils.kitti import KittiDB
 from nuscenes.eval.detection.utils import category_to_detection_name
+
+def _bbox2D_inside(box1, box2): # box1 in box2
+    return box1[0] > box2[0] and box1[2] < box2[2] and box1[1] > box2[1] and box1[3] < box2[3] 
 
 DEBUG = True
 DATA_PATH = '../datasets/nuscenes'
-OUT_PATH = os.path.join(DATA_PATH, 'smoke_convert')
 USED_CAMS = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_BACK_RIGHT', 'CAM_BACK', 'CAM_BACK_LEFT', 'CAM_FRONT_LEFT']
 nusc = NuScenes(version='v1.0-trainval', dataroot=DATA_PATH, verbose=True)
 
 SPLITS = {
-    'train_mini': {'scenes': TRAIN_SCENES_MINI},
-    'train_half': {'scenes': TRAIN_SCENES_HALF},
-    'train_full': {'scenes': TRAIN_SCENES_FULL},
-    'val_mini': {'scenes': VAL_SCENES_MINI},
-    'val_full': {'scenes': VAL_SCENES_FULL}
+    'train_mini': {'scenes': TRAIN_SCENES_MINI, 'images': [], 'annotations': []},
+    'train_half': {'scenes': TRAIN_SCENES_HALF, 'images': [], 'annotations': []},
+    'train_full': {'scenes': TRAIN_SCENES_FULL, 'images': [], 'annotations': []},
+    'val_mini': {'scenes': VAL_SCENES_MINI, 'images': [], 'annotations': []},
+    'val_full': {'scenes': VAL_SCENES_FULL, 'images': [], 'annotations': []}
 }
 
-for i, sample in enumerate(nusc.sample):
-    sample_scene_name = nusc.get('scene', sample['scene_token'])['name']
+for i, sample in tqdm(enumerate(nusc.sample)):
+    scene_name = nusc.get('scene', sample['scene_token'])['name']
     splits = []
     for split in SPLITS:
-        if sample_scene_name in SPLITS[split]['scenes']:
+        if scene_name in SPLITS[split]['scenes']:
             splits.append(split)
     if not splits:
         continue
-
-    if DEBUG:
-        print(splits)
 
     for cam in USED_CAMS:
 
@@ -77,41 +79,48 @@ for i, sample in enumerate(nusc.sample):
             box_front = box.orientation.rotate(np.array([100.0, 0.0, 0.0]))
             rot_y = -np.arctan2(box_front[2], box_front[0])
 
+            # center to kitti-format location
+            box.translate(np.array([0.0, box.wlh[2] / 2.0, 0.0]))
+
+            # compute projected 2D bbox for filtering
+            bbox2D = KittiDB.project_kitti_box_to_image(copy.deepcopy(box), cam_intrinsic, imsize=(image_info['width'], image_info['height']))
+
             ann_info = {
                 'token': box.token,
                 'image_token': image_info['token'],
                 'det_name': det_name,
-                'location': [box.center[0], box.center[1] + box.wlh[2] / 2.0, box.center[2]], # kitti-format location
+                'bbox2D': list(bbox2D),
+                'location': box.center.tolist(),
                 'wlh': box.wlh.tolist(),
                 'rot_y': rot_y
             }
 
-        if DEBUG and cam == 'CAM_FRONT':
-            print(cam_data)
-            print()
-            print(cam_calib)
-            print()
-            print(ego_pose)
-            print()
-            print(global_T_ego)
-            print(global_T_ego.dtype)
-            print()
-            print(ego_T_cam)
-            print(ego_T_cam.dtype)
-            print()
-            print(global_T_cam)
-            print(global_T_cam.dtype)
-            print()
-            print(boxes)
-            print()
-            print(cam_intrinsic)
-            print(cam_intrinsic.dtype)
-            print()
-            print(image_info)
-            
+            anns_info.append(ann_info)
         
+        # filter out object not visible (occluded) in image
+        anns_info_filtered = []
+        for a in range(len(anns_info)):
+            vis = True
+            for b in range(len(anns_info)):
+                if (anns_info[a]['location'][2] - min(anns_info[a]['wlh']) / 2.0) > (anns_info[b]['location'][2] + max(anns_info[b]['wlh']) / 2.0) and _bbox2D_inside(anns_info[a]['bbox2D'], anns_info[b]['bbox2D']):
+                    vis = False
+                    break
+            if vis:
+                anns_info_filtered.append(anns_info[a])
 
-
-
-    if DEBUG and i == 0:
+        # save infos to splits
+        for split in splits:
+            SPLITS[split]['images'].append(copy.deepcopy(image_info))
+            SPLITS[split]['annotations'].append(copy.deepcopy(anns_info_filtered))
+    
+    if DEBUG and i == 500:
         break
+
+# dump infos
+OUT_PATH = os.path.join(DATA_PATH, 'smoke_convert')
+if not os.path.exists(OUT_PATH):
+    os.mkdir(OUT_PATH)
+
+for split in SPLITS:
+    out_file = os.path.join(OUT_PATH, '{}.json'.format(split))
+    json.dump({'images': SPLITS[split]['images'], 'annotations': SPLITS[split]['annotations']}, open(out_file, 'w'))
