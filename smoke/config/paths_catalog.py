@@ -10,22 +10,45 @@ class DatasetCatalog():
         "kitti_test": {
             "root": "kitti/testing/",
         },
-
+        "nusc_train_mini": {
+            "root": "nuscenes/smoke_convert/train_mini.json"
+        },
+        "nusc_train_half": {
+            "root": "nuscenes/smoke_convert/train_half.json"
+        },
+        "nusc_train_full": {
+            "root": "nuscenes/smoke_convert/train_full.json"
+        },
+        "nusc_val_mini": {
+            "root": "nuscenes/smoke_convert/val_mini.json"
+        },
+        "nusc_val_full": {
+            "root": "nuscenes/smoke_convert/val_full.json"
+        }
     }
 
     @staticmethod
     def get(name):
+        if name not in DatasetCatalog.DATASETS:
+            raise RuntimeError("Dataset not available: {}".format(name))
+
+        data_dir = DatasetCatalog.DATA_DIR
+        attrs = DatasetCatalog.DATASETS[name]
+        args = dict(
+            root=os.path.join(data_dir, attrs["root"]),
+        )
+
         if "kitti" in name:
-            data_dir = DatasetCatalog.DATA_DIR
-            attrs = DatasetCatalog.DATASETS[name]
-            args = dict(
-                root=os.path.join(data_dir, attrs["root"]),
-            )
-            return dict(
-                factory="KITTIDataset",
-                args=args,
-            )
-        raise RuntimeError("Dataset not available: {}".format(name))
+            factory="KITTIDataset"
+        elif "nusc" in name:
+            factory="NuScenesDataset"
+        else:
+            raise RuntimeError("Dataset not implemented: {}".format(name))
+
+        return dict(
+            factory=factory,
+            args=args,
+        )
 
 
 class ModelCatalog():
