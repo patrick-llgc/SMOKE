@@ -13,9 +13,8 @@ from nuscenes.utils.kitti import KittiDB
 from nuscenes.eval.detection.utils import category_to_detection_name
 
 def _bbox2D_inside(box1, box2): # box1 in box2
-    return box1[0] > box2[0] and box1[2] < box2[2] and box1[1] > box2[1] and box1[3] < box2[3] 
+    return box1[0] >= box2[0] and box1[2] <= box2[2] and box1[1] >= box2[1] and box1[3] <= box2[3] 
 
-DEBUG = True
 DATA_PATH = '../datasets/nuscenes'
 USED_CAMS = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_BACK_RIGHT', 'CAM_BACK', 'CAM_BACK_LEFT', 'CAM_FRONT_LEFT']
 nusc = NuScenes(version='v1.0-trainval', dataroot=DATA_PATH, verbose=True)
@@ -28,7 +27,7 @@ SPLITS = {
     'val_full': {'scenes': VAL_SCENES_FULL, 'images': [], 'annotations': []}
 }
 
-for i, sample in tqdm(enumerate(nusc.sample)):
+for sample in tqdm(nusc.sample):
     scene_name = nusc.get('scene', sample['scene_token'])['name']
     splits = []
     for split in SPLITS:
@@ -97,7 +96,7 @@ for i, sample in tqdm(enumerate(nusc.sample)):
 
             anns_info.append(ann_info)
         
-        # filter out object not visible (occluded) in image
+        # a very naive strategy from CenterTrack to filter out object not visible (occluded) in image
         anns_info_filtered = []
         for a in range(len(anns_info)):
             vis = True
@@ -112,9 +111,6 @@ for i, sample in tqdm(enumerate(nusc.sample)):
         for split in splits:
             SPLITS[split]['images'].append(copy.deepcopy(image_info))
             SPLITS[split]['annotations'].append(copy.deepcopy(anns_info_filtered))
-    
-    if DEBUG and i == 500:
-        break
 
 # dump infos
 OUT_PATH = os.path.join(DATA_PATH, 'smoke_convert')
@@ -122,5 +118,5 @@ if not os.path.exists(OUT_PATH):
     os.mkdir(OUT_PATH)
 
 for split in SPLITS:
-    out_file = os.path.join(OUT_PATH, '{}.json'.format(split))
-    json.dump({'images': SPLITS[split]['images'], 'annotations': SPLITS[split]['annotations']}, open(out_file, 'w'))
+    with open(os.path.join(OUT_PATH, '{}.json'.format(split)), 'w') as f:
+        json.dump({'images': SPLITS[split]['images'], 'annotations': SPLITS[split]['annotations']}, f)
