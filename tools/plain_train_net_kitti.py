@@ -1,6 +1,6 @@
 import torch
 
-from smoke.config import cfg
+from smoke.config import cfg_kitti as cfg
 from smoke.data import make_data_loader
 from smoke.solver.build import (
     make_optimizer,
