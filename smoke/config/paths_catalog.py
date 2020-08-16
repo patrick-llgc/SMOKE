@@ -11,19 +11,24 @@ class DatasetCatalog():
             "root": "kitti/testing/",
         },
         "nusc_train_mini": {
-            "root": "nuscenes/smoke_convert/train_mini.json"
+            "root": "nuscenes/",
+            "extra": {"json_file": "smoke_convert/train_mini.json"}
         },
         "nusc_train_half": {
-            "root": "nuscenes/smoke_convert/train_half.json"
+            "root": "nuscenes/",
+            "extra": {"json_file": "smoke_convert/train_half.json"}
         },
         "nusc_train_full": {
-            "root": "nuscenes/smoke_convert/train_full.json"
+            "root": "nuscenes/",
+            "extra": {"json_file": "smoke_convert/train_full.json"}
         },
         "nusc_val_mini": {
-            "root": "nuscenes/smoke_convert/val_mini.json"
+            "root": "nuscenes/",
+            "extra": {"json_file": "smoke_convert/val_mini.json"}
         },
         "nusc_val_full": {
-            "root": "nuscenes/smoke_convert/val_full.json"
+            "root": "nuscenes/",
+            "extra": {"json_file": "smoke_convert/val_full.json"}
         }
     }
 
@@ -37,6 +42,9 @@ class DatasetCatalog():
         args = dict(
             root=os.path.join(data_dir, attrs["root"]),
         )
+
+        if "extra" in attrs:
+            args.update(attrs["extra"])
 
         if "kitti" in name:
             factory="KITTIDataset"

@@ -1,5 +1,6 @@
 import os
 import csv
+import json
 import logging
 import random
 import numpy as np
@@ -17,35 +18,34 @@ from smoke.modeling.smoke_coder import encode_label
 from smoke.structures.params_3d import ParamsList
 
 TYPE_ID_CONVERSION = {
-    'Car': 0,
-    'Cyclist': 1,
-    'Pedestrian': 2,
+    'bicycle': 0,
+    'bus': 1,
+    'car': 2,
+    'construction_vehicle': 3,
+    'motorcycle': 4,
+    'pedestrian': 5,
+    'trailer': 6,
+    'truck': 7
 }
 
 
 class NuScenesDataset(Dataset):
-    def __init__(self, cfg, root, is_train=True, transforms=None):
+    def __init__(self, cfg, root, json_file, is_train=True, transforms=None):
         super(NuScenesDataset, self).__init__()
         self.root = root
-        self.image_dir = os.path.join(root, "image_2")
-        self.label_dir = os.path.join(root, "label_2")
-        self.calib_dir = os.path.join(root, "calib")
+        self.json_file = os.path.join(root, json_file)
+        with open(self.json_file, 'r') as f:
+            infos = json.load(f)
+        self.image_infos = infos['images']
+        self.anns_infos = infos['annotations']
 
-        self.split = cfg.DATASETS.TRAIN_SPLIT if is_train else cfg.DATASETS.TEST_SPLIT
         self.is_train = is_train
         self.transforms = transforms
 
-        imageset_txt = os.path.join(root, "ImageSets", self.split + ".txt")
-        if not os.path.exists(imageset_txt):
-            raise FileNotFoundError("Split file {}.txt not found!".format(self.split))
-
-        with open(imageset_txt, "r") as f:
-            sample_ids = f.read().splitlines()
-
-        self.image_files = [sample_id + ".png" for sample_id in sample_ids]
-        self.label_files = [sample_id + ".txt" for sample_id in sample_ids]
-        self.num_samples = len(self.image_files)
         self.classes = cfg.DATASETS.DETECT_CLASSES
+        if self.is_train:
+            self.filter_samples(self.classes)
+        self.num_samples = len(self.image_infos)
 
         self.flip_prob = cfg.INPUT.FLIP_PROB_TRAIN if is_train else 0
         self.aug_prob = cfg.INPUT.SHIFT_SCALE_PROB_TRAIN if is_train else 0
@@ -59,17 +59,14 @@ class NuScenesDataset(Dataset):
         self.max_objs = cfg.DATASETS.MAX_OBJECTS
 
         self.logger = logging.getLogger(__name__)
-        self.logger.info("Initializing NuScenes {} set with {} files loaded".format(self.split, self.num_samples))
+        self.logger.info("Initializing NuScenes {} with {} samples loaded".format(json_file, self.num_samples))
 
     def __len__(self):
         return self.num_samples
 
     def __getitem__(self, idx):
         # load default parameter here
-        original_idx = self.label_files[idx].replace(".txt", "")
-        img_path = os.path.join(self.image_dir, self.image_files[idx])
-        img = Image.open(img_path)
-        anns, K = self.load_annotations(idx)
+        img, image_token, anns, K = self.load_data(idx)
 
         center = np.array([i / 2 for i in img.size], dtype=np.float32)
         size = np.array([i for i in img.size], dtype=np.float32)
@@ -124,7 +121,7 @@ class NuScenesDataset(Dataset):
             if self.transforms is not None:
                 img, target = self.transforms(img, target)
 
-            return img, target, original_idx
+            return img, target, image_token
 
         heat_map = np.zeros([self.num_classes, self.output_height, self.output_width], dtype=np.float32)
         regression = np.zeros([self.max_objs, 3, 8], dtype=np.float32)
@@ -191,39 +188,42 @@ class NuScenesDataset(Dataset):
         if self.transforms is not None:
             img, target = self.transforms(img, target)
 
-        return img, target, original_idx
+        return img, target, image_token
 
-    def load_annotations(self, idx):
+    def load_data(self, idx):
+        image_info = self.image_infos[idx]
+        img_path = os.path.join(self.root, image_info['filename'])
+        img = Image.open(img_path)
+        image_token = image_info['token']
+        K = np.array(image_info['cam_intrinsic'], dtype=np.float32)
+        
+        anns_info = self.anns_infos[idx]
         annotations = []
-        file_name = self.label_files[idx]
-        fieldnames = ['type', 'truncated', 'occluded', 'alpha', 'xmin', 'ymin', 'xmax', 'ymax', 'dh', 'dw',
-                      'dl', 'lx', 'ly', 'lz', 'ry']
 
         if self.is_train:
-            with open(os.path.join(self.label_dir, file_name), 'r') as csv_file:
-                reader = csv.DictReader(csv_file, delimiter=' ', fieldnames=fieldnames)
+            for ann_info in anns_info:
+                annotations.append({
+                    "class": ann_info['det_name'],
+                    "label": TYPE_ID_CONVERSION[ann_info['det_name']],
+                    "dimensions": [float(ann_info['wlh'][1]), float(ann_info['wlh'][2]), float(ann_info['wlh'][0])],
+                    "locations": [float(ann_info['location'][0]), float(ann_info['location'][1]), float(ann_info['location'][2])],
+                    "rot_y": float(ann_info['rot_y'])
+                })
 
-                for row in reader:
-                    if row["type"] in self.classes:
-                        annotations.append({
-                            "class": row["type"],
-                            "label": TYPE_ID_CONVERSION[row["type"]],
-                            "truncation": float(row["truncated"]),
-                            "occlusion": float(row["occluded"]),
-                            "alpha": float(row["alpha"]),
-                            "dimensions": [float(row['dl']), float(row['dh']), float(row['dw'])],
-                            "locations": [float(row['lx']), float(row['ly']), float(row['lz'])],
-                            "rot_y": float(row["ry"])
-                        })
-
-        # get camera intrinsic matrix K
-        with open(os.path.join(self.calib_dir, file_name), 'r') as csv_file:
-            reader = csv.reader(csv_file, delimiter=' ')
-            for row in reader:
-                if row[0] == 'P2:':
-                    K = row[1:]
-                    K = [float(i) for i in K]
-                    K = np.array(K, dtype=np.float32).reshape(3, 4)
-                    break
-
-        return annotations, K
+        return img, image_token, annotations, K
+    
+    def filter_samples(self, classes):
+        image_infos_filtered = []
+        anns_infos_filtered = []
+        for idx in range(len(self.image_infos)):
+            anns_info_filtered = []
+            for ann_info in self.anns_infos[idx]:
+                if ann_info['det_name'] in classes:
+                    anns_info_filtered.append(ann_info)
+            if anns_info_filtered:
+                image_infos_filtered.append(self.image_infos[idx])
+                anns_infos_filtered.append(anns_info_filtered)
+        
+        self.image_infos = image_infos_filtered
+        self.anns_infos = anns_infos_filtered
+        return
