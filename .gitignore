@@ -1,6 +1,6 @@
 smoke.egg-info/
 
-tools/logs/
+tools/log*
 
 .idea
 
