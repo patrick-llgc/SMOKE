@@ -45,7 +45,7 @@ _C.DATASETS = CN()
 _C.DATASETS.TRAIN = ()
 # List of the dataset names for testing, as present in paths_catalog.py
 _C.DATASETS.TEST = ()
-# train split tor dataset
+# train split for dataset
 _C.DATASETS.TRAIN_SPLIT = ""
 # test split for dataset
 _C.DATASETS.TEST_SPLIT = ""
