@@ -5,10 +5,11 @@ INPUT:
   SHIFT_SCALE_PROB_TRAIN: 0.3
 DATASETS:
   DETECT_CLASSES: ("bicycle", "bus", "car", "construction_vehicle", "motorcycle", "pedestrian", "trailer", "truck")
-  TRAIN: ("nusc_train_full",)
+  MAX_OBJECTS: 128
+  TRAIN: ("nusc_train_half",)
   TEST: ("nusc_test",)
 SOLVER:
-  BASE_LR: 2.5e-4
-  STEPS: (10000, 18000)
-  MAX_ITERATION: 25000
+  BASE_LR: 5.0e-4
+  STEPS: (200000, 250000)
+  MAX_ITERATION: 300000
   IMS_PER_BATCH: 32

@@ -227,3 +227,11 @@ class NuScenesDataset(Dataset):
         self.image_infos = image_infos_filtered
         self.anns_infos = anns_infos_filtered
         return
+
+# debug
+if __name__ == "__main__":
+    from smoke.config import cfg_nusc as cfg
+    root = '../../../datasets/nuscenes/'
+    json_file = 'smoke_convert/train_half.json'
+    train_full = NuScenesDataset(cfg, root, json_file)
+    print(len(train_full))

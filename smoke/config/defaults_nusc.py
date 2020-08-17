@@ -18,17 +18,17 @@ _C.MODEL.WEIGHT = ""
 
 _C.INPUT = CN()
 # Size of the smallest side of the image during training
-_C.INPUT.HEIGHT_TRAIN = 384
+_C.INPUT.HEIGHT_TRAIN = 448
 # Maximum size of the side of the image during training
-_C.INPUT.WIDTH_TRAIN = 1280
+_C.INPUT.WIDTH_TRAIN = 800
 # Size of the smallest side of the image during testing
-_C.INPUT.HEIGHT_TEST = 384
+_C.INPUT.HEIGHT_TEST = 448
 # Maximum size of the side of the image during testing
-_C.INPUT.WIDTH_TEST = 1280
+_C.INPUT.WIDTH_TEST = 800
 # Values to be used for image normalization
-_C.INPUT.PIXEL_MEAN = [0.485, 0.456, 0.406]  # kitti
+_C.INPUT.PIXEL_MEAN = [0.47026115, 0.44719302, 0.40789654]  # copied from CenterTrack
 # Values to be used for image normalization
-_C.INPUT.PIXEL_STD = [0.229, 0.224, 0.225]  # kitti
+_C.INPUT.PIXEL_STD = [27809835, 0.27408164, 0.28863828]  # copied from CenterTrack
 # Convert image to BGR format
 _C.INPUT.TO_BGR = True
 # Flip probability
@@ -45,11 +45,11 @@ _C.DATASETS = CN()
 _C.DATASETS.TRAIN = ()
 # List of the dataset names for testing, as present in paths_catalog.py
 _C.DATASETS.TEST = ()
-# train split tor dataset
+# train split for dataset
 _C.DATASETS.TRAIN_SPLIT = ""
 # test split for dataset
 _C.DATASETS.TEST_SPLIT = ""
-_C.DATASETS.DETECT_CLASSES = ("Car",)
+_C.DATASETS.DETECT_CLASSES = ("bicycle", "bus", "car", "construction_vehicle", "motorcycle", "pedestrian", "trailer", "truck")
 _C.DATASETS.MAX_OBJECTS = 30
 
 # -----------------------------------------------------------------------------
@@ -111,11 +111,15 @@ _C.MODEL.SMOKE_HEAD.USE_NORMALIZATION = "GN"
 _C.MODEL.SMOKE_HEAD.NUM_CHANNEL = 256
 # Loss weight for hm and reg loss
 _C.MODEL.SMOKE_HEAD.LOSS_WEIGHT = (1., 10.)
-# Reference car size in (length, height, width)
-# for (car, cyclist, pedestrian)
-_C.MODEL.SMOKE_HEAD.DIMENSION_REFERENCE = ((3.88, 1.63, 1.53),
-                                           (1.78, 1.70, 0.58),
-                                           (0.88, 1.73, 0.67))
+# Reference size in (length, height, width)
+_C.MODEL.SMOKE_HEAD.DIMENSION_REFERENCE = ((1.70, 1.28, 0.60), # bicycle
+                                           (11.07, 3.47, 2.93), # bus
+                                           (4.62, 1.73, 1.95), # car
+                                           (6.37, 3.19, 2.85), # construction_vehicle
+                                           (2.11, 1.47, 0.77), # motorcycle
+                                           (0.73, 1.77, 0.67), # pedestrian
+                                           (12.29, 3.87, 2.90), # trailer
+                                           (6.93, 2.84, 2.51)) # truck
 # Reference depth
 _C.MODEL.SMOKE_HEAD.DEPTH_REFERENCE = (28.01, 16.32)
 _C.MODEL.SMOKE_HEAD.USE_NMS = False
