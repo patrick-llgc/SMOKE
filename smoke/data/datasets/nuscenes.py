@@ -66,7 +66,7 @@ class NuScenesDataset(Dataset):
 
     def __getitem__(self, idx):
         # load default parameter here
-        img, image_token, anns, K = self.load_data(idx)
+        img, image_sample_id, anns, K = self.load_data(idx)
 
         center = np.array([i / 2 for i in img.size], dtype=np.float32)
         size = np.array([i for i in img.size], dtype=np.float32)
@@ -121,7 +121,7 @@ class NuScenesDataset(Dataset):
             if self.transforms is not None:
                 img, target = self.transforms(img, target)
 
-            return img, target, image_token
+            return img, target, image_sample_id
 
         heat_map = np.zeros([self.num_classes, self.output_height, self.output_width], dtype=np.float32)
         regression = np.zeros([self.max_objs, 3, 8], dtype=np.float32)
@@ -188,13 +188,13 @@ class NuScenesDataset(Dataset):
         if self.transforms is not None:
             img, target = self.transforms(img, target)
 
-        return img, target, image_token
+        return img, target, image_sample_id
 
     def load_data(self, idx):
         image_info = self.image_infos[idx]
         img_path = os.path.join(self.root, image_info['filename'])
         img = Image.open(img_path)
-        image_token = image_info['token']
+        image_sample_id = image_info['token'] + ' ' + image_info['sample_token']
         K = np.array(image_info['cam_intrinsic'], dtype=np.float32)
         
         anns_info = self.anns_infos[idx]
@@ -210,7 +210,7 @@ class NuScenesDataset(Dataset):
                     "rot_y": float(ann_info['rot_y'])
                 })
 
-        return img, image_token, annotations, K
+        return img, image_sample_id, annotations, K
     
     def filter_samples(self, classes):
         image_infos_filtered = []
